@@ -9,7 +9,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(ParseDTD FindDTDRoot ParseDTDFile);
 our @EXPORT_OK = @EXPORT;
 
-our $VERSION = 1.9;
+our $VERSION = '2.00';
 
 my $namechar = '[#\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF0-9\xB7._:-]';
 my $name = '[\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF_:]' . $namechar . '*';
@@ -133,9 +133,11 @@ Recursive <!ENTITY ...> definitions or too many entities! Only up to 1000 entity
 				and $option = $1
 				or $option = '!';
 			if (exists $elements{$element}->{children}->{$child}) {
-				$elements{$element}->{children}->{$child} = merge_options( $elements{$element}->{children}->{$child}, $option);
+				$elements{$element}->{children}->{$child} = _merge_options( $elements{$element}->{children}->{$child}, $option);
+				$elements{$element}->{childrenX}->{$child} = _merge_counts( $elements{$element}->{childrenX}->{$child}, _char2count($option));
 			} else {
 				$elements{$element}->{children}->{$child} = $option;
+				$elements{$element}->{childrenX}->{$child} = _char2count($option);
 			}
 			push @{$elements{$element}->{childrenARR}}, $child
 				unless $child eq '#PCDATA';
@@ -273,9 +275,50 @@ my %merge_options = (
 	'+?' => '+',
 	'??' => '?',
 );
-sub merge_options {
+sub _merge_options {
 	my ($o1, $o2) = sort @_;
 	return $merge_options{$o1.$o2};
+}
+
+my %char2count = (
+	'!' => '1',
+	'?' => '0..1',
+	'+' => '1..',
+	'*' => '0..',
+);
+sub _char2count{
+	return $char2count{$_[0]}
+}
+
+sub _merge_counts {
+	my ($c1, $c2) = @_;
+	if ($c1 =~ /^\d+$/) {
+		if ($c2 =~ /^\d+$/) {
+			return $c1+$c2
+		} elsif ($c2 =~ /^(\d+)..(\d+)$/) {
+			return ($c1+$1) . ".." . ($c1+$2);
+		} elsif ($c2 =~ /^(\d+)..$/) {
+			return ($c1+$1) . "..";
+		}
+	} elsif ($c1 =~ /^(\d+)..(\d+)$/) {
+		my ($c1l,$c1u) = ($1,$2);
+		if ($c2 =~ /^\d+$/) {
+			return ($c1l+$c2) . ".." . ($c1u+$c2);
+		} elsif ($c2 =~ /^(\d+)..(\d+)$/) {
+			return ($c1l+$1) . ".." . ($c1u+$2);
+		} elsif ($c2 =~ /^(\d+)..$/) {
+			return ($c1l+$1) . "..";
+		}
+	} elsif ($c1 =~ /^(\d+)..$/) {
+		$c1=$1;
+		if ($c2 =~ /^\d+$/) {
+			return ($c1+$c2) . "..";
+		} elsif ($c2 =~ /^(\d+)..(\d+)$/) {
+			return ($c1+$1) . "..";
+		} elsif ($c2 =~ /^(\d+)..$/) {
+			return ($c1+$1) . "..";
+		}
+	}
 }
 
 sub FindDTDRoot {
@@ -294,7 +337,7 @@ sub FindDTDRoot {
 
 XML::DTDParser - quick and dirty DTD parser
 
-Version 1.9
+Version 2.00
 
 =head1 SYNOPSIS
 
