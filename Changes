@@ -14,3 +14,12 @@ Revision history for Perl extension XML::DTDParser.
 	- fixed a typo on line 34 (close IN; instead of close $IN;, thanks to hughmyers@micron.com)
 	- handling <!ELEMENT D (A? | B? | C?)> properly
 	- added childrenSTR option to the elements
+
+1.4 GOK
+	- internal only
+
+1.5 Tue Feb 11 2003
+	- allows <!ELEMENT Foo (#PCDATA|Bar|Baz)*>
+	- incorrectly formated chlidren lists are reported as incorrectly formated
+	  (instead of some bogus "Element @#*&^*&^$ referenced by Element was not found")
+	- supports enumerated attributes <!ATTLIST A Name ( 1 | 2 | 3) #REQUIRED>

@@ -7,10 +7,13 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(ParseDTD FindDTDRoot);
 our @EXPORT_OK = @EXPORT;
 
-our $VERSION = 1.3;
+our $VERSION = 1.5;
 
-my $name = '[\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF][#\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF0-9\xB7._:-]*';
+my $namechar = '[#\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF0-9\xB7._:-]';
+my $name = '[\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF_:]' . $namechar . '*';
 my $nameX = $name . '[.?+*]*';
+
+my $nmtoken = $namechar . '+';
 
 my $AttType = '(?:CDATA|ID|IDREF|IDREFS|ENTITY|ENTITIES|NMTOKEN|NMTOKENS|\(.*?\)|NOTATION ?\(.*?\))';
 my $DefaultDecl = q{(?:#REQUIRED|#IMPLIED|(:?#FIXED ?)?(?:".*?"|'.*?'))};
@@ -63,9 +66,16 @@ Recursive <!ENTITY ...> definitions or too many entities! Only up to 1000 entity
 		$children =~ s/\s//g;
 		if ($children eq '(#PCDATA)') {
 			$children = '#PCDATA';
+		} elsif ($children =~ s/^\((#PCDATA(?:\|$name)+)\)$/$1/o and $option eq '*') {
+			$children =~ s/\|/*,/g;
+			$children .= '*';
 		} else {
 			$children = simplify_children( $children, $option);
 		}
+
+		die "<!ELEMENT $element (...)> is not valid!\n"
+			unless $children =~ m{^#?$nameX(?:,$nameX)*$};
+
 
 		$elements{$element}->{childrenARR} = [];
 		foreach my $child (split ',', $children) {
@@ -99,10 +109,13 @@ Recursive <!ENTITY ...> definitions or too many entities! Only up to 1000 entity
 				$option = '#FIXED';
 				$default = $1;
 			} elsif ($option =~ /^["'](.*)["']$/i){
-				$option = '#FIXED';
+				$option = '';
 				$default = $1;
 			}
 			$elements{$element}->{attributes}->{$name} = [$type,$option,$default];
+			if ($type =~ /^(?:NOTATION\s*)?\(\s*(.*?)\)$/) {
+				$elements{$element}->{attributes}->{$name}->[3] = parse_enum($1);
+			}
 		}
 	}
 #=cut
@@ -183,6 +196,12 @@ sub simplify_children {
 	return $children;
 }
 
+sub parse_enum {
+	my $enum = shift;
+	$enum =~ tr/\x20\x09\x0D\x0A//d; # get rid of whitespace
+	return [split /\|/, $enum];
+}
+
 sub FindDTDRoot {
 	my $elements = shift;
 	my @roots;
@@ -197,9 +216,9 @@ sub FindDTDRoot {
 
 =head1 NAME
 
-XML::DTDParser - quick&dirty DTD parser
+XML::DTDParser - quick and dirty DTD parser
 
-Version 1.3
+Version 1.5
 
 =head1 SYNOPSIS
 
