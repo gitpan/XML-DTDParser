@@ -7,7 +7,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(ParseDTD FindDTDRoot);
 our @EXPORT_OK = @EXPORT;
 
-our $VERSION = 1.1;
+our $VERSION = 1.3;
 
 my $name = '[\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF][#\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF0-9\xB7._:-]*';
 my $nameX = $name . '[.?+*]*';
@@ -31,7 +31,7 @@ sub ParseDTD {
 			my $IN;
 			open $IN, "<$include" or die "Cannot open include file $include : $!\n";
 			$definition = <$IN>;
-			close IN;
+			close $IN;
 		}
 		$definition =~ s/\s\s*/ /gs;
 		$xml =~ s{\Q$percent$entity;\E}{$definition}g;
@@ -57,10 +57,15 @@ Recursive <!ENTITY ...> definitions or too many entities! Only up to 1000 entity
 	undef %definitions;
 	$xml =~ tr/\x01//d;
 
-	while ($xml =~ s{<!ELEMENT\s+($name)\s*\((.*?)\)([?*+]?)\s*>}{}io) {
+	while ($xml =~ s{<!ELEMENT\s+($name)\s*(\(.*?\))([?*+]?)\s*>}{}io) {
 		my ($element, $children, $option) = ($1,$2,$3);
+		$elements{$element}->{childrenSTR} = $children . $option;
 		$children =~ s/\s//g;
-		$children = simplify_children( $children, $option);
+		if ($children eq '(#PCDATA)') {
+			$children = '#PCDATA';
+		} else {
+			$children = simplify_children( $children, $option);
+		}
 
 		$elements{$element}->{childrenARR} = [];
 		foreach my $child (split ',', $children) {
@@ -194,7 +199,7 @@ sub FindDTDRoot {
 
 XML::DTDParser - quick&dirty DTD parser
 
-Version 1.1
+Version 1.3
 
 =head1 SYNOPSIS
 
