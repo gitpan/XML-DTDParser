@@ -89,6 +89,12 @@ my $GOOD_DTD = {
                                      'FLD' => '!',
                                      'BILLING' => '!'
                                    },
+                     'childrenX' => {
+                                     'TEXT' => '1',
+                                     'TITLE' => '1',
+                                     'FLD' => '1',
+                                     'BILLING' => '1'
+                                   },
                      'repeat_set' => 'action',
                      'attributes' => {
                                        'action' => [
@@ -133,6 +139,9 @@ my $GOOD_DTD = {
                                     'childrenSTR' => '(JOB+)',
                                     'children' => {
                                                     'JOB' => '+'
+                                                  },
+                                    'childrenX' => {
+                                                    'JOB' => '1..'
                                                   }
                                   },
           'BILLING' => {
@@ -153,6 +162,12 @@ my $GOOD_DTD = {
                                          'OFFICE' => '!',
                                          'FOO' => '+',
                                          'PHONE' => '!'
+                                       },
+                         'childrenX' => {
+                                         'NAME' => '1',
+                                         'OFFICE' => '1',
+                                         'FOO' => '1..',
+                                         'PHONE' => '1'
                                        },
                          'attributes' => {
                                            'empty' => [

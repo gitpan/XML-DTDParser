@@ -9,7 +9,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(ParseDTD FindDTDRoot ParseDTDFile);
 our @EXPORT_OK = @EXPORT;
 
-our $VERSION = '2.00';
+our $VERSION = '2.01';
 
 my $namechar = '[#\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF0-9\xB7._:-]';
 my $name = '[\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF_:]' . $namechar . '*';
@@ -134,10 +134,12 @@ Recursive <!ENTITY ...> definitions or too many entities! Only up to 1000 entity
 				or $option = '!';
 			if (exists $elements{$element}->{children}->{$child}) {
 				$elements{$element}->{children}->{$child} = _merge_options( $elements{$element}->{children}->{$child}, $option);
-				$elements{$element}->{childrenX}->{$child} = _merge_counts( $elements{$element}->{childrenX}->{$child}, _char2count($option));
+				$elements{$element}->{childrenX}->{$child} = _merge_counts( $elements{$element}->{childrenX}->{$child}, _char2count($option))
+					unless $child eq '#PCDATA';
 			} else {
 				$elements{$element}->{children}->{$child} = $option;
-				$elements{$element}->{childrenX}->{$child} = _char2count($option);
+				$elements{$element}->{childrenX}->{$child} = _char2count($option)
+					unless $child eq '#PCDATA';
 			}
 			push @{$elements{$element}->{childrenARR}}, $child
 				unless $child eq '#PCDATA';
@@ -337,7 +339,7 @@ sub FindDTDRoot {
 
 XML::DTDParser - quick and dirty DTD parser
 
-Version 2.00
+Version 2.01
 
 =head1 SYNOPSIS
 
