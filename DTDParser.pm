@@ -2,12 +2,14 @@ package XML::DTDParser;
 require Exporter;
 use FileHandle;
 use strict;
+use File::Spec;
+use Cwd;
 our @ISA = qw(Exporter);
 
-our @EXPORT = qw(ParseDTD FindDTDRoot);
+our @EXPORT = qw(ParseDTD FindDTDRoot ParseDTDFile);
 our @EXPORT_OK = @EXPORT;
 
-our $VERSION = 1.7;
+our $VERSION = 1.9;
 
 my $namechar = '[#\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF0-9\xB7._:-]';
 my $name = '[\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF_:]' . $namechar . '*';
@@ -15,9 +17,29 @@ my $nameX = $name . '[.?+*]*';
 
 my $nmtoken = $namechar . '+';
 
-my $AttType = '(?:CDATA|ID|IDREF|IDREFS|ENTITY|ENTITIES|NMTOKEN|NMTOKENS|\(.*?\)|NOTATION ?\(.*?\))';
+my $AttType = '(?:CDATA\b|IDREFS?\b|ID\b|ENTITY\b|ENTITIES\b|NMTOKENS?\b|\([^\)]*\)|NOTATION\s+\([^\)]*\))';
 my $DefaultDecl = q{(?:#REQUIRED|#IMPLIED|(:?#FIXED ?)?(?:".*?"|'.*?'))};
 my $AttDef = '('.$name.') ('.$AttType.')(?: ('.$DefaultDecl.'))?';
+
+
+sub ParseDTDFile {
+	my $file = shift;
+	open my $IN, "< $file"
+		or die "Cannot open the $file : $!\n";
+	my $xml = do {local $/; <$IN>};
+	close $IN;
+	my ($vol,$dir,$filename) = File::Spec->splitpath( $file);
+	if ($filename eq $file) {
+		return ParseDTD($xml);
+	} else {
+		# in case there are any includes, they should be relative to the DTD file, not to current dir
+		my $cwd = cwd();
+		chdir(File::Spec->catdir($vol,$dir));
+		my $DTD = ParseDTD($xml);
+		chdir($cwd);
+		return $DTD;
+	}
+}
 
 sub ParseDTD {
 	my $xml = shift;
@@ -79,8 +101,8 @@ sub ParseDTD {
 
 	{
 		my $replacements = 0;
-		1 while $replacements++ < 1000 and $xml =~ s{([&%]$name);}{(exists $definitions{$1} ? $definitions{$1} : "$1\x01;")}ge;
-		die <<'*END*' if $xml =~ m{([&%]$name);};
+		1 while $replacements++ < 1000 and $xml =~ s{([&%]$name);}{(exists $definitions{$1} ? $definitions{$1} : "$1\x01;")}geo;
+		die <<'*END*' if $xml =~ m{([&%]$name);}o;
 Recursive <!ENTITY ...> definitions or too many entities! Only up to 1000 entity replacements allowed.
 (An entity is something like &foo; or %foo;. They are defined by <!ENTITY ...> tag.)
 *END*
@@ -102,7 +124,7 @@ Recursive <!ENTITY ...> definitions or too many entities! Only up to 1000 entity
 		}
 
 		die "<!ELEMENT $element (...)> is not valid!\n"
-			unless $children =~ m{^#?$nameX(?:,$nameX)*$};
+			unless $children =~ m{^#?$nameX(?:,$nameX)*$}o;
 
 
 		$elements{$element}->{childrenARR} = [];
@@ -110,7 +132,11 @@ Recursive <!ENTITY ...> definitions or too many entities! Only up to 1000 entity
 			$child =~ s/([?*+])$//
 				and $option = $1
 				or $option = '!';
-			$elements{$element}->{children}->{$child} = $option;
+			if (exists $elements{$element}->{children}->{$child}) {
+				$elements{$element}->{children}->{$child} = merge_options( $elements{$element}->{children}->{$child}, $option);
+			} else {
+				$elements{$element}->{children}->{$child} = $option;
+			}
 			push @{$elements{$element}->{childrenARR}}, $child
 				unless $child eq '#PCDATA';
 		}
@@ -127,7 +153,7 @@ Recursive <!ENTITY ...> definitions or too many entities! Only up to 1000 entity
 		}
 	}
 #=for comment
-	while ($xml =~ s{<!ATTLIST\s+($name)\s+(.*?)\s*>}{}io) {
+	while ($xml =~ s{<!ATTLIST(?:\s+($name)\s+(.*?))?\s*>}{}io) {
 		my ($element, $attributes) = ($1,$2);
 		die "<!ELEMENT $element ...> referenced by an <!ATTLIST ...> not found!\n"
 			unless exists $elements{$element};
@@ -235,6 +261,23 @@ sub parse_enum {
 	return [split /\|/, $enum];
 }
 
+my %merge_options = (
+	'!!' => '+',
+	'!*' => '+' ,
+	'!+' => '+',
+	'!?' => '+',
+	'**' => '*',
+	'*+' => '+',
+	'*?' => '*',
+	'++' => '+',
+	'+?' => '+',
+	'??' => '?',
+);
+sub merge_options {
+	my ($o1, $o2) = sort @_;
+	return $merge_options{$o1.$o2};
+}
+
 sub FindDTDRoot {
 	my $elements = shift;
 	my @roots;
@@ -251,19 +294,15 @@ sub FindDTDRoot {
 
 XML::DTDParser - quick and dirty DTD parser
 
-Version 1.7
+Version 1.9
 
 =head1 SYNOPSIS
 
-  use XML::DTDParser qw(ParseDTD);
+  use XML::DTDParser qw(ParseDTD ParseDTDFile);
 
-  open DTD, "<$dtdfile" or die "Cannot open $dtdfile : $!\n";
-  my $DTDtext;
-  { local $/;
-	$DTDtext = <DTD>
-  }
-  close DTD;
   $DTD = ParseDTD $DTDtext;
+ #or
+  $DTD = ParseDTDFile( $dtdfile)
 
 =head1 DESCRIPTION
 
@@ -314,7 +353,7 @@ to certain tags for output and I want to be able to specify the mapping inside t
 =head2 EXPORT
 
 By default the module exports all (both) it's functions. If you only want one, or none
-use either
+use
 
 	use XML::DTDParser qw(ParseDTD);
 	or
@@ -330,7 +369,17 @@ Parses the $DTDtext and creates a data structure. If the $DTDtext contains some
 <!ENTITY ... SYSTEM "..."> declarations those are read and parsed as needed.
 The paths are relative to current directory.
 
-The module currently doesn't support URLs here.
+The module currently doesn't support URLs here yet.
+
+=item ParseDTDFile
+
+	$DTD = ParseDTDFile $DTDfile;
+
+Parses the contents of $DTDfile and creates a data structure. If the $DTDfile contains some
+<!ENTITY ... SYSTEM "..."> declarations those are read and parsed as needed.
+The paths are relative to the $DTDfile.
+
+The module currently doesn't support URLs here yet.
 
 =item FindDTDRoot
 

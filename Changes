@@ -29,3 +29,11 @@ Revision history for Perl extension XML::DTDParser.
 
 1.7 Web Mar 19, 2003
 	- fixed a small bug in the regexp parsing the <!--#info --> comments
+
+1.8 GOK
+	- internal only
+
+1.9 Fri Nov 05 2004
+	- ParseDTDFile function
+	- handle <!ELEMENT id (id, type, type*)> correctly (the multiplicity of the "type" should be "+", not "*" in this case
+	- fixes in regexps

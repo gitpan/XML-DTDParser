@@ -27,7 +27,7 @@ my $DTD = ParseDTD <<'*END*';
 <!ELEMENT TITLE (#PCDATA)>
 <!--#info element='TITLE' map_to='JOB_TITLE'-->
 
-<!ELEMENT BILLING (NAME,PHONE,OFFICE,FOO)>
+<!ELEMENT BILLING (NAME,PHONE,OFFICE,FOO,FOO*)>
 <!ATTLIST BILLING static CDATA #REQUIRED empty CDATA #REQUIRED>
 <!--#info element='BILLING' attribute='static' set_to='some value'-->
 
@@ -140,17 +140,18 @@ my $GOOD_DTD = {
                                             'NAME',
                                             'PHONE',
                                             'OFFICE',
+                                            'FOO',
                                             'FOO'
                                           ],
                          'parent' => [
                                        'JOB'
                                      ],
-                         'childrenSTR' => '(NAME,PHONE,OFFICE,FOO)',
+                         'childrenSTR' => '(NAME,PHONE,OFFICE,FOO,FOO*)',
                          'option' => '!',
                          'children' => {
                                          'NAME' => '!',
                                          'OFFICE' => '!',
-                                         'FOO' => '!',
+                                         'FOO' => '+',
                                          'PHONE' => '!'
                                        },
                          'attributes' => {
@@ -177,7 +178,7 @@ my $GOOD_DTD = {
                                  ],
                      'childrenSTR' => '(#PCDATA)',
                      'content' => 1,
-                     'option' => '!',
+                     'option' => '+',
                      'set_to' => 'Bar'
                    },
           'FLD' => {
@@ -200,3 +201,6 @@ my $GOOD_DTD = {
         };
 
 ok(Compare($DTD, $GOOD_DTD));
+
+#use Data::Dumper;
+#print Dumper($DTD);
