@@ -1,0 +1,11 @@
+Revision history for Perl extension XML::DTDParser.
+
+1.0  Tue Feb 12 23:41:58 2002
+	- original version
+
+1.1  Wed Feb 13 00:20 2002
+	- small fix
+
+1.2  Sun Dec 29
+	- renamed from Jenda::QD::DTDParser to XML::DTDParser
+	- uploaded to CPAN
