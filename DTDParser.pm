@@ -7,7 +7,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(ParseDTD FindDTDRoot);
 our @EXPORT_OK = @EXPORT;
 
-our $VERSION = 1.5;
+our $VERSION = 1.7;
 
 my $namechar = '[#\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF0-9\xB7._:-]';
 my $name = '[\x41-\x5A\x61-\x7A\xC0-\xD6\xD8-\xF6\xF8-\xFF_:]' . $namechar . '*';
@@ -30,14 +30,42 @@ sub ParseDTD {
 		$percent = '&' unless $percent;
 		my $definition;
 		{
-			local $/;
+			# the $include may be a URL, use LWP::Simple to fetch it if it is.
 			my $IN;
 			open $IN, "<$include" or die "Cannot open include file $include : $!\n";
-			$definition = <$IN>;
+			$definition = do {local $/; <$IN>};
 			close $IN;
 		}
 		$definition =~ s/\s\s*/ /gs;
 		$xml =~ s{\Q$percent$entity;\E}{$definition}g;
+	}
+
+	my (%elementinfo, %attribinfo);
+	while ($xml =~ s{<!--#info\s+(.*?)-->}{}s) {
+		my $info = $1;$info =~ s/\s+$//s;
+		my %info;
+		while ($info =~ s{^([\w-]+)\s*=\s*((?:'[^']*')+|(?:"[^"]*")+|[^\s'"]\S*)\s*}{}s) {
+			my ($name, $value) = ($1, $2);
+			if ($value =~ /^'/) {
+				($value = substr $value, 1, length($value)-2) =~ s/''/'/g;
+			} elsif ($value =~ /^"/) {
+				($value = substr $value, 1, length($value)-2) =~ s/""/"/g;
+			}
+			$info{$name} = $value;
+		}
+		die "Malformed <!--#info ...--> section!\n\t<!--#info $info -->\n"
+			if ($info ne '');
+		die "The <!--#info $info --> section doesn't contain the 'element' parameter!\n"
+			unless exists $info{'element'};
+		my $element = $info{'element'};
+		delete $info{'element'};
+		if (exists $info{'attribute'}) {
+			my $attribute = $info{'attribute'};
+			delete $info{'attribute'};
+			$attribinfo{$element}->{$attribute} = \%info;
+		} else {
+			$elementinfo{$element} = \%info;
+		}
 	}
 
 	$xml =~ s{<!--.*?-->}{}gs;
@@ -112,7 +140,7 @@ Recursive <!ENTITY ...> definitions or too many entities! Only up to 1000 entity
 				$option = '';
 				$default = $1;
 			}
-			$elements{$element}->{attributes}->{$name} = [$type,$option,$default];
+			$elements{$element}->{attributes}->{$name} = [$type,$option,$default,undef];
 			if ($type =~ /^(?:NOTATION\s*)?\(\s*(.*?)\)$/) {
 				$elements{$element}->{attributes}->{$name}->[3] = parse_enum($1);
 			}
@@ -145,14 +173,19 @@ Recursive <!ENTITY ...> definitions or too many entities! Only up to 1000 entity
 		if (scalar(keys %{$elements{$element}->{children}}) == 0) {
 			delete $elements{$element}->{children};
 		}
+		if (exists $elementinfo{$element}) {
+			foreach my $info (keys %{$elementinfo{$element}}) {
+				$elements{$element}->{$info} = $elementinfo{$element}->{$info};
+			}
+		}
+		if (exists $attribinfo{$element}) {
+			foreach my $attribute (keys %{$attribinfo{$element}}) {
+				$elements{$element}->{'attributes'}->{$attribute}->[4] = $attribinfo{$element}->{$attribute};
+			}
+		}
 	}
 
 	return \%elements;
-}
-
-sub or2and_children {
-	my $children = $_[0];
-
 }
 
 sub flatten_children {
@@ -218,7 +251,7 @@ sub FindDTDRoot {
 
 XML::DTDParser - quick and dirty DTD parser
 
-Version 1.5
+Version 1.7
 
 =head1 SYNOPSIS
 
@@ -247,7 +280,36 @@ CHILD1 and CHILD2 are optional. That is is the DTD contains
 the result will be the same is if it contained
 	<!ELEMENT FOO (BAR?,BAZ?)>
 
-You get the original unparsed parameter list as well so if you need this information you may parse it yourself.
+You get the original unparsed parameter list as well so if you need this
+information you may parse it yourself.
+
+Since version 1.6 this module supports my "extensions" to DTDs.
+If the DTD contains a comment in form
+
+	<!--#info element=XXX foo=bar greeting="Hello World!" person='d''Artagnan'-->
+
+and there is an element XXX in the DTD, the resulting hash for the XXX will contain
+
+	'foo' => 'bar',
+	'person' => 'd\'Artagnan',
+	'greeting => 'Hello World!'
+
+If the DTD contains
+
+	<!--#info element=XXX attribute=YYY break=no-->
+
+the
+
+	$DTD->{XXX}->{attributes}->{YYY}->[4]
+
+will be set to
+
+	{ break => 'no' }
+
+I use this parser to import the DTD into the database so that I could map some fields
+to certain tags for output and I want to be able to specify the mapping inside the file:
+
+	<!--#info element=TagName map_to="FieldName"-->
 
 =head2 EXPORT
 

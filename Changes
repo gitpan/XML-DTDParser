@@ -23,3 +23,9 @@ Revision history for Perl extension XML::DTDParser.
 	- incorrectly formated chlidren lists are reported as incorrectly formated
 	  (instead of some bogus "Element @#*&^*&^$ referenced by Element was not found")
 	- supports enumerated attributes <!ATTLIST A Name ( 1 | 2 | 3) #REQUIRED>
+
+1.6 GOK
+	- added support for <!--#info --> comments
+
+1.7 Web Mar 19, 2003
+	- fixed a small bug in the regexp parsing the <!--#info --> comments
